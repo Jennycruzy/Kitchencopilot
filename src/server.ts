@@ -280,7 +280,7 @@ Return ONLY valid JSON in this exact format:
                             model: process.env.OLLAMA_MODEL || "llama3.2-vision:latest",
                             prompt: prompt,
                             images: [imageBase64],
-                            stream: true
+                            stream: false
                         })
                     });
 
@@ -300,7 +300,7 @@ Return ONLY valid JSON in this exact format:
                                     model: process.env.OLLAMA_MODEL || "llama3.2-vision:latest",
                                     prompt: prompt,
                                     images: [imageBase64],
-                                    stream: true
+                                    stream: false
                                 })
                             });
                         } catch (e) {
@@ -308,19 +308,8 @@ Return ONLY valid JSON in this exact format:
                         }
                     }
 
-                    if (!fetchResponse.ok) throw new Error(`Ollama API error: ${fetchResponse.statusText}`);
-                    if (fetchResponse.body) {
-                        for await (const chunk of fetchResponse.body as any) {
-                            const text = new TextDecoder().decode(chunk);
-                            const lines = text.split('\n').filter(Boolean);
-                            for (const line of lines) {
-                                try {
-                                    const parsed = JSON.parse(line);
-                                    if (parsed.response) responseText += parsed.response;
-                                } catch (e) { }
-                            }
-                        }
-                    }
+                    const response = (await fetchResponse.json()) as any;
+                    responseText = response.response || "";
                 } else {
                     responseText = (await runtime.useModel(ModelType.IMAGE_DESCRIPTION, {
                         imageUrl: `data:${mimeType};base64,${imageBase64}`,
@@ -358,9 +347,9 @@ Food description: ${responseText}`;
                     const match2 = (structuredResponse as unknown as string).match(/\{[\s\S]*\}/);
                     if (match2) detected = JSON.parse(match2[0]);
                 }
-            } catch (visionErr) {
+            } catch (visionErr: any) {
                 console.error("Vision analysis error:", visionErr);
-                // Continue with empty result rather than failing
+                throw new Error("AI Analysis Timeout or Failure: " + (visionErr.message || "Unknown error"));
             }
 
             // Return detected items without saving to db!

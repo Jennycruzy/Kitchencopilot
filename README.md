@@ -1,205 +1,103 @@
-# 🍽️ KitchenCopilot — Autonomous Kitchen AI
+# 🍽️ KitchenCopilot — Autonomous AI Kitchen Manager
 
-> Built on **ElizaOS Core Agent** • Powered by autonomous reasoning • Deploys to Sevarica VPS + Nosana GPU
-
----
-
-## Architecture
-
-```
-ElizaOS AgentRuntime   ←─── plugin-kitchen (Actions / Providers / Evaluators / Services)
-       │
-       ├── ModelType.IMAGE_ANALYSIS  → Vision ingredient detection
-       ├── ModelType.TEXT_LARGE      → Meal planning & recipe matching
-       ├── ModelType.TEXT_SMALL      → Voice commands, expiry advice, budget
-       └── MemoryManager             → Per-user inventory persistence
-       │
-Express REST API        ←─── JWT auth, image upload, plan generation
-       │
-React + Vite Frontend   ←─── Dashboard, Inventory, MealPlan, ShoppingList
-       │
-Web Speech API          ←─── Push-to-talk voice in browser
-```
+> **KitchenCopilot** is an autonomous AI agent built on **ElizaOS**, designed to revolutionize household food management. It leverages advanced computer vision to "see" your ingredients and uses autonomous reasoning to plan meals, manage budgets, and reduce waste.
 
 ---
 
-## Quick Start (Local)
+## 🏗️ System Architecture
 
-### 1. Prerequisites
-```bash
-node --version   # v22+
-bun --version    # v1.1+
+KitchenCopilot uses a hybrid architecture combining a high-performance **Express REST API** for real-time frontend interactions and an **ElizaOS Agent Runtime** for autonomous background tasks and complex LLM reasoning.
+
+### High-Level Architecture
+```mermaid
+graph TD
+    User["📱 User (PWA Mobile)"]
+    Frontend["⚛️ React + Vite Frontend"]
+    API["🚀 Express API (REST)"]
+    Agent["🤖 ElizaOS Agent Runtime"]
+    DB["🗄️ SQLite (KitchenSync.db)"]
+    Nosana["💎 Nosana GPU (Ollama)"]
+
+    User <-->|HTTPS| Frontend
+    Frontend <-->|REST / JWT| API
+    API <-->|State| DB
+    API <-->|Inference| Nosana
+    Agent <-->|Memory| DB
+    Agent -->|Autonomous Loop| API
+    API <--> Agent
 ```
 
-### 2. Configure environment
-```bash
-cd /path/to/kitchen-copilot
-cp .env.example .env
-nano .env   # Add your model provider key (see options below)
-```
-
-### 3. Install dependencies
-```bash
-# Backend
-npm install
-
-# Frontend
-cd frontend && npm install && cd ..
-```
-
-### 4. Start
-```bash
-# Terminal 1 — Backend (ElizaOS Agent)
-npm run dev
-
-# Terminal 2 — Frontend
-cd frontend && npm run dev
-```
-
-Open **http://localhost:5173** in Chrome (recommended for Web Speech API).
+### Key Components
+1.  **Frontend (React/Vite)**: A mobile-first, zero-refresh PWA with native camera integration and Web Speech API for voice control.
+2.  **Backend (Express + ElizaOS)**: Handles authentication, image orchestration, and complex kitchen logic (plugin-kitchen).
+3.  **Vision Pipeline (Nosana/Ollama)**: Uses decentralized GPU compute to run `llama3.2-vision:latest` for real-time ingredient extraction from photos.
+4.  **Database (SQLite)**: A unified storage layer (`kitchensync.db`) managing users, inventory sections (Fridge, Pantry, etc.), recipes, and sessions.
 
 ---
 
-## Mobile App (PWA) & Camera Scanning
+## 🚀 How It Works
 
-KitchenCopilot is optimized as a Progressive Web App (PWA) targeting mobile devices and allowing instant ingredient scanning:
-1. **Accessing remotely on a VPS**: The application frontend is configured with `@vitejs/plugin-basic-ssl`. To use the camera remotely, access the app securely via `https://YOUR_VPS_IP:5173` (you may need to bypass the self-signed certificate warning locally).
-2. **Install to Home Screen**: When opening the app on iOS or Android, use your browser's "Add to Home Screen" or "Install App" function to save it alongside your native apps with offline caching.
-3. **Camera Features**: Navigate to the **Inventory** page and tap "**📷 Take Photo**" to snap shots of your fridge or pantry instantly, instead of browsing files.
+### 1. Vision-Based Ingestion
+When you take a photo of your fridge:
+-   The image is sent to the backend as a Base64 stream.
+-   The **Vision Service** sends it to a **Nosana GPU node** running Ollama.
+-   The AI extracts specific ingredients, quantities, and assigns metadata (emojis, estimated expiry).
+-   **Review Modal**: You get to review the items and choose exactly where they belong (e.g., "Add to Pantry" or "Wipe and replace Fridge").
 
----
+### 2. Autonomous Reasoning
+KitchenCopilot doesn't just wait for you. It features a **24-hour Replanning Scheduler** that runs in the background:
+-   It analyzes expiring items every day.
+-   It regenerates a **Weekly Meal Plan** optimized to use soon-to-expire food first.
+-   It automatically updates your **Shopping List** based on missing essentials for your planned recipes.
 
-## Model Provider Options
-
-Configure exactly ONE in `.env`:
-
-### Option A — OpenAI (cloud, recommended for best vision quality)
-```env
-OPENAI_API_KEY=sk-...
-```
-
-### Option B — Ollama (local / free)
-```bash
-# Install Ollama: https://ollama.com
-ollama pull llama3.2-vision:latest
-```
-```env
-OLLAMA_SERVER_URL=http://localhost:11434
-```
-
-### Option C — Nosana GPU (decentralized GPU credits)
-```env
-# Once your Nosana job is running, set the Ollama-compatible endpoint:
-OLLAMA_SERVER_URL=https://YOUR_JOB_ID.anon.nosana.io
-```
-> **Adding Nosana GPU Credits**: Go to [app.nosana.io](https://app.nosana.io), fund your wallet with NOS tokens, and deploy an Ollama-compatible GPU job. Copy the endpoint URL into `OLLAMA_SERVER_URL`.
+### 3. Voice Command Center
+Equipped with a custom **Intent Router**, you can speak naturally to the app:
+-   *"Add milk to my pantry"*
+-   *"What can I cook with these eggs?"*
+-   *"I just finished the carrots"*
+-   The agent parses the intent and updates the database via internal API calls.
 
 ---
 
-## Deploying to Sevarica VPS (24/7)
+## 🛠️ Tech Stack
 
-### 1. SSH into your Sevarica VPS
-```bash
-ssh root@your-vps-ip
-```
-
-### 2. Install Docker
-```bash
-curl -fsSL https://get.docker.com | bash
-systemctl enable docker && systemctl start docker
-```
-
-### 3. Clone and configure
-```bash
-git clone https://github.com/your-username/kitchen-copilot.git
-cd kitchen-copilot
-cp .env.example .env
-nano .env   # Set JWT_SECRET, model provider key, FRONTEND_URL
-```
-
-### 4. Build and launch
-```bash
-docker compose up -d --build
-```
-
-### 5. Verify
-```bash
-docker ps
-curl http://localhost:3000/api/health
-```
-
-### 6. (Optional) Enable GPU passthrough on Sevarica
-```bash
-# Install NVIDIA container toolkit
-distribution=$(. /etc/os-release;echo $ID$VERSION_ID)
-curl -s -L https://nvidia.github.io/nvidia-docker/gpgkey | apt-key add -
-# Then uncomment the 'deploy: resources' block in docker-compose.yml
-```
-
-### 7. Domain + SSL (recommended)
-```bash
-apt install nginx certbot python3-certbot-nginx
-certbot --nginx -d your-domain.com
-# Then update FRONTEND_URL and CORS in .env accordingly
-```
+-   **Agent Framework**: ElizaOS (v1.4.4+)
+-   **Backend**: Node.js, Express, better-sqlite3, JWT
+-   **Frontend**: React, Vite, PWA, Tailwind CSS
+-   **AI Inference**: Nosana GPU (Decentralized Ollama)
+-   **Voice**: Web Speech API (Browser-native)
+-   **Deployment**: Docker Compose, Nginx, Certbot
 
 ---
 
-## ElizaOS Plugin Architecture
+## 📍 Important Features
 
-```
-packages/plugin-kitchen/
-├── actions/
-│   ├── visionProcessing.ts    → IMAGE_ANALYSIS model
-│   ├── inventoryManagement.ts → Eliza MemoryManager
-│   ├── recipeMatching.ts      → TEXT_LARGE model
-│   ├── mealPlanning.ts        → TEXT_LARGE model
-│   ├── shoppingList.ts        → TEXT_SMALL model
-│   ├── expirationAnalysis.ts  → Heuristic + TEXT_SMALL
-│   ├── budgetPlanning.ts      → TEXT_SMALL model
-│   └── voiceInput.ts          → TEXT_SMALL intent routing
-├── providers/
-│   ├── inventoryProvider.ts   → Injects inventory into every context
-│   └── userContextProvider.ts → Injects user profile into every context
-├── evaluators/
-│   └── inventoryEvaluator.ts  → Post-turn: logs ingredient usage
-└── services/
-    └── replanningScheduler.ts → 24h autonomous replanning loop
-```
+-   **Multi-Inventory Support**: Group your items by physical location (Fridge, Pantry, etc.).
+-   **Expiration Tracking**: Intelligent estimation and visual urgency indicators (Lightning bolt ⚡ for urgent).
+-   **Budget Mapping**: Set a weekly budget and let the AI plan meals that fit.
+-   **PWA Ready**: Install it on your iOS/Android home screen for a native app experience.
 
 ---
 
-## Voice Commands (Web Speech API)
+## 🔮 Future Improvement Plans
 
-Click the 🎤 button (bottom-right) in Chrome and speak:
-
-- *"What can I cook today?"*
-- *"I used the eggs"*
-- *"Add milk to my shopping list"*
-- *"Plan meals for this week"*
-- *"Set my budget to $75"*
-- *"What's about to expire?"*
+1.  **Multi-User Households**: Shared family inventories and collaborative shopping lists with real-time sync via WebSockets.
+2.  **External Grocery Integration**: Direct API connections to grocery delivery services (Instacart/UberEats) to populate your cart automatically from the Shopping List.
+3.  **Barcode Scanning Support**: Fallback for pre-packaged items that vision might struggle with for 100% SKU accuracy.
+4.  **Recipe Web Scraping**: Allow users to share a URL of a recipe they like, and have the AI check if the current inventory supports it.
+5.  **Smart Appliance Sync**: Integration with IoT fridges (Samsung/LG) for real-time item tracking without manual photos.
+6.  **Recipe Visualization**: Generate AI-powered images of what the final cooked meal will look like for every entry in the Meal Plan.
 
 ---
 
-## Success Metrics
+## 💻 Local Development
 
-| Metric | Target |
-|--------|--------|
-| Ingredient detection accuracy | 90%+ of visible items |
-| Inventory utilization | ≥85% before suggesting grocery run |
-| Autonomous loop | Continuous 24h replanning |
-| Data isolation | Per-user, no overlap |
+1.  Clone the repo: `git clone https://github.com/Jennycruzy/Kitchencopilot.git`
+2.  Install Backend: `npm install`
+3.  Install Frontend: `cd frontend && npm install`
+4.  Setup Environment: `cp .env.example .env` (Add your OLLAMA_SERVER_URL)
+5.  Run: `npm run dev` (Root) and `npm run dev` (Frontend)
 
 ---
 
-## When to Add Nosana GPU Credits
-
-**Build phase**: ✅ Not needed (code runs locally/without GPU)
-
-**Deployment**: Add Nosana credits when you want to:
-1. Run a local Ollama vision model (instead of cloud API) on GPU
-2. Scale inference with decentralized compute
-3. Keep costs at $0 for LLM inference (NOS tokens instead of API credits)
-
-Steps: [app.nosana.io](https://app.nosana.io) → Fund wallet → Deploy GPU job → Use endpoint as `OLLAMA_SERVER_URL`
+> **Built with ❤️ by the KitchenCopilot Team.**
