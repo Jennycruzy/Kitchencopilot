@@ -43,7 +43,7 @@ export default function MealPlan() {
     return (
         <div>
             <div className="page-header">
-                <div className="page-title">📅 Weekly Meal Plan</div>
+                <div className="page-title">📜 Weekly Plans ({new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })})</div>
                 <div className="page-subtitle">AI-generated plan using your inventory — expiring items used first</div>
                 <div className="page-actions">
                     <button id="generate-plan-btn" className="btn btn-primary" onClick={generate} disabled={generating}>
@@ -86,7 +86,7 @@ export default function MealPlan() {
                 <div className="loading-center"><div className="spinner" /></div>
             ) : !plan ? (
                 <div className="empty-state">
-                    <div className="empty-icon">📅</div>
+                    <div className="empty-icon">🥘</div>
                     <div className="empty-title">No meal plan yet</div>
                     <div className="empty-desc">Upload some ingredient photos first, then generate your plan!</div>
                     <button id="gen-btn-empty" className="btn btn-primary" style={{ marginTop: 20 }} onClick={generate} disabled={generating}>

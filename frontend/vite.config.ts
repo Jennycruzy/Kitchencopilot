@@ -16,5 +16,14 @@ export default defineConfig({
     },
     build: {
         outDir: "dist",
+        emptyOutDir: true,
+        rollupOptions: {
+            output: {
+                // Disable hashing to keep filenames predictable for caches
+                entryFileNames: "assets/[name].js",
+                chunkFileNames: "assets/[name].js",
+                assetFileNames: "assets/[name].[ext]",
+            },
+        },
     },
 });

@@ -5,7 +5,7 @@ import { useAuth } from "../App";
 const navItems = [
     { to: "/dashboard", icon: "🏠", label: "Dashboard" },
     { to: "/inventory", icon: "🥦", label: "Inventory" },
-    { to: "/mealplan", icon: "📅", label: "Meal Plan" },
+    { to: "/mealplan", icon: "📜", label: "Meal Plan" },
     { to: "/shopping", icon: "🛒", label: "Shopping" },
 ];
 

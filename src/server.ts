@@ -123,7 +123,19 @@ export async function createApiServer(runtime: AgentRuntime, port: number): Prom
     // Serve built frontend in production
     const publicDir = path.join(process.cwd(), "public");
     if (fs.existsSync(publicDir)) {
-        app.use(express.static(publicDir));
+        // Explicitly set cache-control for index.html to avoid stale PWA bundles
+        app.get("/", (_req, res) => {
+            res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+            res.sendFile(path.join(publicDir, "index.html"));
+        });
+        app.use(express.static(publicDir, {
+            maxAge: "1d",
+            setHeaders: (res, path) => {
+                if (path.endsWith(".html")) {
+                    res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
+                }
+            }
+        }));
     }
 
     // ── Auth Routes ──────────────────────────────────────────────────────────
@@ -472,7 +484,8 @@ Food description: ${responseText}`;
             const cuisines = profile ? JSON.parse(profile.cuisine_preferences || "[]") : [];
             const budget = profile?.weekly_budget || 0;
 
-            const prompt = `You are KitchenCopilot generating a 7-day meal plan.
+            const todayDate = new Date().toISOString().split("T")[0];
+            const prompt = `You are KitchenCopilot generating a 7-day meal plan starting from today, ${todayDate}.
 
 CURRENT INVENTORY (prioritize items expiring soonest):
 ${inventoryList}
@@ -709,6 +722,12 @@ Return JSON:
     if (fs.existsSync(publicDir)) {
         app.get("*", (req, res, next) => {
             if (req.path.startsWith("/api/")) return next();
+            // Do NOT serve index.html for missing asset files (like .js, .css, .png)
+            if (req.path.includes(".")) {
+                res.status(404).send("Not found");
+                return;
+            }
+            res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
             res.sendFile(path.join(publicDir, "index.html"));
         });
     }

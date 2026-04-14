@@ -62,7 +62,7 @@ export default function Dashboard() {
                     <div className="stat-label">Use Within a Week</div>
                 </div>
                 <div className="stat-card blue">
-                    <div className="stat-icon">📅</div>
+                    <div className="stat-icon">📜</div>
                     <div className="stat-value" style={{ color: "var(--accent-blue)" }}>
                         {mealPlan ? <span style={{ fontSize: 16 }}>Active</span> : <span style={{ fontSize: 16 }}>None</span>}
                     </div>
@@ -74,10 +74,10 @@ export default function Dashboard() {
 
                 {/* Today's Meals */}
                 <div className="card">
-                    <div className="flex justify-between items-center mb-16">
-                        <h2 style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700 }}>Today's Meals 📅</h2>
-                        <button className="btn btn-secondary btn-sm" onClick={() => navigate("/mealplan")}>Full Plan</button>
-                    </div>
+                    <h2 style={{ fontFamily: "var(--font-display)", fontSize: 18, fontWeight: 700 }}>
+                        Today's Meals — {new Date().toLocaleDateString("en-US", { month: "short", day: "numeric" })}
+                    </h2>
+                    <button className="btn btn-secondary btn-sm" onClick={() => navigate("/mealplan")}>Full Plan</button>
                     {todayMeals ? (
                         <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
                             {(["breakfast", "lunch", "dinner"] as const).map(mealType => {
@@ -94,7 +94,7 @@ export default function Dashboard() {
                         </div>
                     ) : (
                         <div className="empty-state" style={{ padding: "24px 0" }}>
-                            <div className="empty-icon">📅</div>
+                            <div className="empty-icon">🥘</div>
                             <div className="empty-desc">No meal plan yet</div>
                             <button className="btn btn-primary btn-sm" style={{ marginTop: 12 }} onClick={() => navigate("/mealplan")}>
                                 Generate Plan
