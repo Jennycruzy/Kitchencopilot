@@ -1,0 +1,84 @@
+version: "3.9"
+
+services:
+  # ── KitchenCopilot ElizaOS Agent + API ──────────────────────
+  agent:
+    build: .
+    container_name: kitchen-copilot-agent
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      - NODE_ENV=production
+      - ELIZAOS_PORT=3000
+      - JWT_SECRET=${JWT_SECRET:-change_this_secret_please}
+      - DATABASE_PATH=/app/data/kitchensync.db
+      - FRONTEND_URL=${FRONTEND_URL:-http://localhost:8080}
+      - POSTGRES_URL=postgres://postgres:password@db:5432/eliza
+      # ── Model Provider (configure ONE below) ──
+      # Option 1: OpenAI (gpt-4o vision)
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      # Option 2: Anthropic
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Option 3: Ollama (local or Nosana GPU endpoint)
+      - OLLAMA_SERVER_URL=${OLLAMA_SERVER_URL:-}
+    volumes:
+      - kitchen_data:/app/data
+    networks:
+      - kitchen_net
+    depends_on:
+      - db
+
+  # ── PostgreSQL Database ───────────────────────────────────────
+  db:
+    image: ankane/pgvector:v0.5.1
+    container_name: kitchen-copilot-db
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=eliza
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - kitchen_net
+    # Uncomment for Nosana GPU / local GPU:
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: 1
+    #           capabilities: [gpu]
+
+
+  # ── Ollama (optional: local GPU model server) ─────────────────
+  # Uncomment if using local Ollama instead of cloud provider:
+  # ollama:
+  #   image: ollama/ollama:latest
+  #   container_name: kitchen-copilot-ollama
+  #   restart: unless-stopped
+  #   ports:
+  #     - "11434:11434"
+  #   volumes:
+  #     - ollama_models:/root/.ollama
+  #   networks:
+  #     - kitchen_net
+  #   deploy:
+  #     resources:
+  #       reservations:
+  #         devices:
+  #           - driver: nvidia
+  #             count: all
+  #             capabilities: [gpu]
+
+volumes:
+  kitchen_data:
+    driver: local
+  pg_data:
+    driver: local
+  # ollama_models:
+
+networks:
+  kitchen_net:
+    driver: bridge

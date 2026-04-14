@@ -1,0 +1,9 @@
+{
+    "name": "plugin-kitchen",
+    "version": "1.0.0",
+    "type": "module",
+    "main": "src/index.ts",
+    "dependencies": {
+        "@elizaos/core": "1.7.2"
+    }
+}

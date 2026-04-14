@@ -1,0 +1,11 @@
+node_modules/
+dist/
+data/
+.env
+*.db
+*.log
+frontend/dist/
+frontend/node_modules/
+packages/*/node_modules/
+.elizadb/
+.eliza/
