@@ -75,6 +75,7 @@ function getDb(): Database.Database {
   `);
 
     try { db.exec("ALTER TABLE kc_inventory ADD COLUMN emoji TEXT DEFAULT '🥗'"); } catch (_) { }
+    try { db.exec("ALTER TABLE kc_inventory ADD COLUMN inventory_name TEXT DEFAULT 'Main'"); } catch (_) { }
 
     return db;
 }
@@ -272,17 +273,40 @@ Return ONLY valid JSON in this exact format:
                         ? `${ollamaUrl}/api/generate`
                         : `${ollamaUrl}/api/generate`;
 
-                    const fetchResponse = await fetch(apiUrl.replace("/api/api", "/api"), {
+                    let fetchResponse = await fetch(apiUrl.replace("/api/api", "/api"), {
                         method: "POST",
                         headers: { "Content-Type": "application/json" },
                         body: JSON.stringify({
                             model: process.env.OLLAMA_MODEL || "llama3.2-vision:latest",
                             prompt: prompt,
                             images: [imageBase64],
-                            format: "json",
                             stream: true
                         })
                     });
+
+                    if (fetchResponse.status === 404) {
+                        try {
+                            const pullUrl = apiUrl.replace("/api/api", "/api").replace("/generate", "/pull");
+                            await fetch(pullUrl, {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({ name: process.env.OLLAMA_MODEL || "llama3.2-vision:latest", stream: false })
+                            });
+                            // Retry after pull
+                            fetchResponse = await fetch(apiUrl.replace("/api/api", "/api"), {
+                                method: "POST",
+                                headers: { "Content-Type": "application/json" },
+                                body: JSON.stringify({
+                                    model: process.env.OLLAMA_MODEL || "llama3.2-vision:latest",
+                                    prompt: prompt,
+                                    images: [imageBase64],
+                                    stream: true
+                                })
+                            });
+                        } catch (e) {
+                            console.error("Auto-pull failed:", e);
+                        }
+                    }
 
                     if (!fetchResponse.ok) throw new Error(`Ollama API error: ${fetchResponse.statusText}`);
                     if (fetchResponse.body) {
@@ -339,17 +363,43 @@ Food description: ${responseText}`;
                 // Continue with empty result rather than failing
             }
 
-            // Store detected ingredients in database
-            const stored: any[] = [];
-            const stmt = db.prepare(`
-        INSERT INTO kc_inventory (id, user_id, name, quantity, unit, category, emoji, expiry_label, expiry_days, purchase_date, image_source)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'), ?)
-      `);
+            // Return detected items without saving to db!
+            const previewItems = (detected.ingredients || []).map((item: any) => ({
+                id: stringToUuid(`${userId}-${item.name}-${Date.now()}-${Math.random()}`),
+                ...item,
+                inventory_name: "Main"
+            }));
 
-            for (const item of (detected.ingredients || [])) {
-                const itemId = stringToUuid(`${userId}-${item.name}-${Date.now()}-${Math.random()}`);
+            res.json({
+                success: true,
+                detected: previewItems,
+                suggested_purchases: detected.suggested_purchases || [],
+                scene_description: detected.scene_description,
+                count: previewItems.length,
+            });
+        } catch (err: any) {
+            console.error("Upload error:", err);
+            res.status(500).json({ error: "Image analysis failed: " + err.message });
+        }
+    });
+
+    app.post("/api/inventory/bulk", verifyToken, (req: Request, res: Response) => {
+        try {
+            const { userId } = (req as any).user;
+            const { items, inventory_name, clear_existing } = req.body;
+
+            if (clear_existing && inventory_name) {
+                db.prepare("DELETE FROM kc_inventory WHERE user_id=? AND inventory_name=?").run(userId, inventory_name);
+            }
+
+            const stmt = db.prepare(`
+                INSERT INTO kc_inventory (id, user_id, name, quantity, unit, category, emoji, expiry_label, expiry_days, purchase_date, image_source, inventory_name)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, strftime('%s','now'), ?, ?)
+            `);
+
+            for (const item of (items || [])) {
                 stmt.run(
-                    itemId,
+                    item.id || stringToUuid(`${userId}-bulk-${Date.now()}-${Math.random()}`),
                     userId,
                     item.name,
                     String(item.quantity || ""),
@@ -358,22 +408,23 @@ Food description: ${responseText}`;
                     item.emoji || "🥗",
                     item.expiry_label || "unknown",
                     item.expiry_days ?? null,
-                    req.file!.originalname || "upload",
+                    "upload",
+                    inventory_name || item.inventory_name || "Main"
                 );
-                stored.push({ id: itemId, ...item });
             }
-
-            res.json({
-                success: true,
-                detected: stored,
-                suggested_purchases: detected.suggested_purchases || [],
-                scene_description: detected.scene_description,
-                count: stored.length,
-            });
+            res.json({ success: true, count: (items || []).length });
         } catch (err: any) {
-            console.error("Upload error:", err);
-            res.status(500).json({ error: "Image analysis failed: " + err.message });
+            console.error("Bulk save error:", err);
+            res.status(500).json({ error: "Failed to save ingredients" });
         }
+    });
+
+    app.post("/api/inventory/clear", verifyToken, (req: Request, res: Response) => {
+        const { userId } = (req as any).user;
+        const { inventory_name } = req.body;
+        if (!inventory_name) { res.status(400).json({ error: "Require inventory_name" }); return; }
+        db.prepare("DELETE FROM kc_inventory WHERE user_id=? AND inventory_name=?").run(userId, inventory_name);
+        res.json({ success: true });
     });
 
     app.put("/api/inventory/:id", verifyToken, (req: Request, res: Response) => {
@@ -408,9 +459,15 @@ Food description: ${responseText}`;
     app.post("/api/mealplan/generate", verifyToken, async (req: Request, res: Response) => {
         try {
             const { userId } = (req as any).user;
-            const inventory = db.prepare(
-                "SELECT * FROM kc_inventory WHERE user_id=? ORDER BY expiry_days ASC"
-            ).all(userId) as any[];
+            const { inventories } = req.body || {}; // e.g., ["Fridge", "Pantry"]
+
+            let inventory = [];
+            if (inventories && Array.isArray(inventories) && inventories.length > 0) {
+                const marks = inventories.map(() => '?').join(',');
+                inventory = db.prepare(`SELECT * FROM kc_inventory WHERE user_id=? AND inventory_name IN (${marks}) ORDER BY expiry_days ASC`).all(userId, ...inventories) as any[];
+            } else {
+                inventory = db.prepare("SELECT * FROM kc_inventory WHERE user_id=? ORDER BY expiry_days ASC").all(userId) as any[];
+            }
             const profile = db.prepare("SELECT * FROM kc_profiles WHERE user_id=?").get(userId) as any;
 
             if (inventory.length === 0) {

@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from "react";
-import { mealPlanApi } from "../api/client";
+import { mealPlanApi, inventoryApi } from "../api/client";
 import { useToast } from "../App";
 
 const DAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
@@ -10,6 +10,8 @@ export default function MealPlan() {
     const [plan, setPlan] = useState<any>(null);
     const [loading, setLoading] = useState(true);
     const [generating, setGenerating] = useState(false);
+    const [invNames, setInvNames] = useState<string[]>([]);
+    const [selectedInventories, setSelectedInventories] = useState<string[]>([]);
     const { showToast } = useToast();
     const today = new Date().toLocaleDateString("en-US", { weekday: "long" });
 
@@ -18,12 +20,17 @@ export default function MealPlan() {
             .then(r => setPlan(r.data?.plan_data || null))
             .catch(console.error)
             .finally(() => setLoading(false));
+
+        inventoryApi.list().then(r => {
+            const items = r.data || [];
+            setInvNames(Array.from(new Set(items.map((i: any) => i.inventory_name || "Main"))) as string[]);
+        }).catch(() => { });
     }, []);
 
     const generate = async () => {
         setGenerating(true);
         try {
-            const { data } = await mealPlanApi.generate();
+            const { data } = await mealPlanApi.generate(selectedInventories.length > 0 ? selectedInventories : undefined);
             setPlan(data.plan_data);
             showToast("✅ 7-day meal plan generated!");
         } catch (err: any) {
@@ -53,6 +60,25 @@ export default function MealPlan() {
                             ⚡ {plan.expiring_used.length} expiring items prioritized
                         </div>
                     )}
+                </div>
+            </div>
+
+            <div style={{ marginBottom: 24, padding: "12px 16px", background: "var(--bg-secondary)", borderRadius: 12, border: "1px solid rgba(255,255,255,0.05)" }}>
+                <div style={{ fontSize: 13, color: "var(--text-secondary)", marginBottom: 8, fontWeight: 500 }}>Target Inventories (leave empty to use all)</div>
+                <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+                    {invNames.map(name => (
+                        <label key={name} style={{ display: "flex", alignItems: "center", gap: 6, background: "rgba(255,255,255,0.05)", padding: "6px 12px", borderRadius: 8, cursor: "pointer", fontSize: 14 }}>
+                            <input type="checkbox"
+                                checked={selectedInventories.includes(name)}
+                                onChange={e => {
+                                    if (e.target.checked) setSelectedInventories([...selectedInventories, name]);
+                                    else setSelectedInventories(selectedInventories.filter(x => x !== name));
+                                }}
+                            />
+                            {name}
+                        </label>
+                    ))}
+                    {invNames.length === 0 && <span style={{ fontSize: 13, color: "var(--text-muted)" }}>No items in inventory.</span>}
                 </div>
             </div>
 

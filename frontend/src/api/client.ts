@@ -40,6 +40,8 @@ export const inventoryApi = {
         fd.append("image", file);
         return api.post("/inventory/upload", fd, { headers: { "Content-Type": "multipart/form-data" } });
     },
+    bulkSave: (data: { items: any[], inventory_name: string, clear_existing: boolean }) => api.post("/inventory/bulk", data),
+    clear: (inventory_name: string) => api.post("/inventory/clear", { inventory_name }),
     update: (id: string, data: any) => api.put(`/inventory/${id}`, data),
     remove: (id: string) => api.delete(`/inventory/${id}`),
 };
@@ -47,7 +49,7 @@ export const inventoryApi = {
 // ── Meal Plan ─────────────────────────────────────────────────
 export const mealPlanApi = {
     get: () => api.get("/mealplan"),
-    generate: () => api.post("/mealplan/generate"),
+    generate: (inventories?: string[]) => api.post("/mealplan/generate", { inventories }),
 };
 
 // ── Shopping List ─────────────────────────────────────────────
