@@ -24,9 +24,17 @@ export function CameraCapture({ onCapture, onCancel }: CameraCaptureProps) {
         setIsInitializing(true);
         setError(null);
         try {
-            const mediaStream = await navigator.mediaDevices.getUserMedia({
-                video: { facingMode: 'environment' }
-            });
+            let mediaStream;
+            try {
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: { facingMode: 'environment' }
+                });
+            } catch (e) {
+                // Fallback to any camera if environment fails
+                mediaStream = await navigator.mediaDevices.getUserMedia({
+                    video: true
+                });
+            }
             if (!mountedRef.current) {
                 mediaStream.getTracks().forEach(t => t.stop());
                 return;

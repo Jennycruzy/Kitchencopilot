@@ -309,8 +309,27 @@ Return ONLY valid JSON in this exact format:
                     detected = JSON.parse(jsonMatch[0]);
                 } else {
                     // Fallback: ask the LLM to extract from free text
+                    const fallbackPrompt = `Convert this food description to JSON. Use this exact format:
+{
+  "ingredients": [
+    {
+      "name": "string",
+      "quantity": "string or number",
+      "unit": "string",
+      "category": "string",
+      "emoji": "emoji string",
+      "expiry_label": "string",
+      "expiry_days": number,
+      "freshness_note": "string or null"
+    }
+  ],
+  "suggested_purchases": ["item 1", "item 2"],
+  "scene_description": "string"
+}
+
+Food description: ${responseText}`;
                     const structuredResponse = await runtime.useModel(ModelType.TEXT_SMALL, {
-                        prompt: `Convert this food description to JSON with the format above: ${responseText}`,
+                        prompt: fallbackPrompt,
                     });
                     const match2 = (structuredResponse as unknown as string).match(/\{[\s\S]*\}/);
                     if (match2) detected = JSON.parse(match2[0]);

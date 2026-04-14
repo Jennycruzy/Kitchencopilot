@@ -165,7 +165,7 @@ export default function Inventory() {
                         return (
                             <div key={item.id} className={`ingredient-card ${exp}`}>
                                 <button id={`del-${item.id}`} className="delete-btn" onClick={() => handleDelete(item.id)}>✕</button>
-                                <div className="ingredient-emoji">{item.emoji || emojis[item.category] || "🥗"}</div>
+                                <div className="ingredient-emoji">{item.emoji && item.emoji !== '🥗' ? item.emoji : (emojis[item.category] || "🥗")}</div>
                                 <div className="ingredient-name">{item.name}</div>
                                 <div className="ingredient-qty">{item.quantity} {item.unit}</div>
                                 <div className="ingredient-expiry">
